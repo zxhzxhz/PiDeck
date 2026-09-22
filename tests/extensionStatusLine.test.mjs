@@ -88,6 +88,14 @@ test("status line wiring: main composes and clears, renderer mounts, setting exi
 	assert.match(composerArea, /statusLine={<ComposerStatusLine sessionId=\{props\.sessionId\} \/>}/, "ComposerArea 必须在输入卡下方挂载状态行");
 	assert.match(composerArea, /\{props\.composerBox\}\s*\{props\.statsLine\}\s*\{props\.statusLine\}/, "状态行必须排在 statsLine 之后（TUI 底栏位置）");
 
+	// 打开会话即预热 runtime（否则纯历史会话要等用户敲一次输入才出现状态行）。
+	const composerAreaSrc = read("src/renderer/src/components/session/ComposerArea.tsx");
+	assert.match(composerAreaSrc, /useComposerStatusLineActivation\(\{/, "ComposerArea 必须接入状态行预热 hook");
+	assert.match(composerAreaSrc, /runtimeLive: isLiveRuntimeStatus\(composer\.runtime\?\.status\)/, "预热判据必须带上当前 runtime 是否活着");
+	const activationHook = read("src/renderer/src/hooks/useComposerStatusLineActivation.ts");
+	assert.match(activationHook, /desktopApi\.sessions\.activateRuntime\(sessionId\)/, "预热必须走既有的 activateRuntime（幂等复用活进程）");
+	assert.match(activationHook, /shouldActivateRuntimeForStatusLine\(/, "预热判据必须是可单测的纯函数（见 statusLineRuntimeActivation.test.mjs）");
+	assert.match(activationHook, /requestedRef\.current = sessionId;/, "每个会话每次挂载只请求一次（护栏先落再发请求）");
 	// 开关：默认关的 PiDeck 设置 + 设置页开关行 + 中英文案。
 	const settingsType = read("src/shared/types/settings.ts");
 	assert.match(settingsType, /showComposerStatusLine: boolean;/);

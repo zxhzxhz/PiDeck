@@ -58,6 +58,14 @@ setx PI_DECK_SKIP_ATOMGIT 1   # 撤销：reg delete HKCU\Environment /v PI_DECK_
 - **边界**：pi 自家 footer 的 pwd / 花费 / 上下文百分比由 TUI 交互层渲染，
   RPC 模式不提供（`setFooter` 在 RPC 下是空实现）——这一行只包含扩展状态条目；
   无条目时整行卸载（不占高度）。
+- **打开会话即预热 runtime**（2026-09 追加）：状态来自扩展，只有活着的 pi 进程才会发事件；
+  PiDeck 默认懒启动（输入框有内容才预热），不补这一步的话点开纯历史会话看不到状态行，
+  要先在输入框里触发一次交互才出现。因此开关开启时由
+  `hooks/useComposerStatusLineActivation.ts` 在会话打开时调一次
+  `sessions.activateRuntime`（幂等：已有活进程直接复用），
+  每个会话每次挂载只请求一次；开关关闭时行为与未引入该功能时完全一致。
+  代价：开启该开关会为每个打开的会话起/复用 pi 进程（受闲置自动释放的保留数约束），
+  这是用户显式选择（设置项描述里已说明）。
 - **相关文件**：`src/main/pi/extensionStatusLine.ts`（纯函数 + 单测）、
   `src/main/pi/AgentManager.ts`（按 runtime 收集并合成下发，`clearAgentState` 清理）、
   `src/shared/types/agent.ts`（`statusKey` / `statusLine`）、

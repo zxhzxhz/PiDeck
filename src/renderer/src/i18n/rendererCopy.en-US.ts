@@ -3778,7 +3778,8 @@ export const enUS: Record<TranslationKey, string> = {
 	"settings.expandInterimDuringStream": "Expand interim process while streaming",
 	"settings.expandInterimDuringStreamDesc": "On (default): thinking and tool details auto-expand while the latest turn streams. Off: keep them collapsed to save rendering resources; manually expanded turns are unaffected.",
 	"settings.showComposerStatusLine": "Show extension status line under the composer",
-	"settings.showComposerStatusLineDesc": "Shows the last line of pi's TUI footer: statuses written by extensions via ctx.ui.setStatus (quotas, usage, context, task progress), joined with pi's own ordering and spacing rules. Collapses to nothing when there are no status entries.",
+	"settings.showComposerStatusLineDesc":
+		"Shows the last line of pi's TUI footer: statuses written by extensions via ctx.ui.setStatus (quotas, usage, context, task progress), joined with pi's own ordering and spacing rules. Opening a session prewarms the pi runtime, because those statuses come from extensions and only exist while a process is running. Collapses to nothing when there are no status entries.",
 	"settings.collapsePrevRunsOnNewTurn": "Collapse previous turns on new message",
 	"settings.collapsePrevRunsOnNewTurnDesc": "Automatically collapses thinking/tool details of previous turns (including manually expanded ones) after sending a new message, reducing what is rendered at once.",
 	"settings.idleAgentSection": "Idle agent memory optimization",
