@@ -2,6 +2,27 @@
 
 本文件只描述**本 fork 的 `mod` 分支**相对上游 `ayuayue/PiDeck:main` 的改动。上游发版流程、CHANGELOG 约定不在本 fork 内维护（合并上游时本文件可能冲突，按「保留本 fork 功能」处理）。
 
+## 本 fork 的本地约定（不要在 clone 里开 AtomGit 镜像）
+
+上游仓库带着一个 `pre-push` 钩子（`.githooks/pre-push` → `scripts/atomgit-mirror.mjs`）：
+每次 `git push` 都会顺带把本次引用镜像到 `atomgit.com/ayuayue/PiDeck`（上游镜像）；
+`npm ci` / `npm install` 的 `prepare` 会跑 `scripts/install-git-hooks.mjs`，把
+`core.hooksPath` 指回 `.githooks` 并重建 `atomgit` 远端——所以关掉后每次重装依赖都要再关一次。
+
+本 fork 的 clone 里关闭镜像（三行，幂等）：
+
+```bash
+mkdir -p .githooks-off && echo ".githooks-off/" >> .git/info/exclude
+git config --local core.hooksPath .githooks-off
+git remote remove atomgit
+```
+
+更彻底的做法是设用户级环境变量（钩子脚本自带开关，`npm ci` 也不会绕过）：
+
+```powershell
+setx PI_DECK_SKIP_ATOMGIT 1   # 撤销：reg delete HKCU\Environment /v PI_DECK_SKIP_ATOMGIT /f
+```
+
 ## 功能 1：模型列表加载扩展（慢速档开关）
 
 - **位置**：「配置管理 → pi 配置管理 → 设置 → 默认供应商与模型」里的开关
