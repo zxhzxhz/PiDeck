@@ -199,7 +199,7 @@ let previewSettings: AppSettings = {
 	piRpcNoExtensions: false,
 	piRpcNoSkills: false,
 	piModelListLoadExtensions: true,
-	showComposerStatusLine: false,
+	composerStatusLineMode: "off",
 };
 
 export function createPreviewApi(): PiDesktopApi {

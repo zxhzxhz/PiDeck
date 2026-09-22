@@ -48,29 +48,42 @@ setx PI_DECK_SKIP_ATOMGIT 1   # 撤销：reg delete HKCU\Environment /v PI_DECK_
 ## 功能 2：输入框下方显示 TUI 底栏（扩展状态行）
 
 - **位置**：聊天输入卡正下方（`ComposerStatsLine` 之下）的一条等宽文本行；
-  开关在「设置 → 常用 → 输入框下方显示扩展状态行」（`showComposerStatusLine`，**默认关**）。
+  档位在「设置 → 常用 → 扩展状态行」，**三选一**（`composerStatusLineMode`，默认 `off`）：
+  - `off` 关闭；
+  - `on` 打开：显示这一行，但**不为它启动 pi**（纯浏览历史不起进程；只有该会话已有活进程时才有内容）；
+  - `prewarm` 打开并预热：显示 + 打开会话即激活 pi 运行进程（见下）。
+  旧版布尔开关 `showComposerStatusLine` 按当时行为迁移（`true → prewarm`、`false/缺省 → off`），
+  见 `src/main/settings/composerStatusLineMode.ts`（纯函数 + 单测）。
 - **数据来源**：pi 扩展 `ctx.ui.setStatus(key, text)` 在 RPC 模式下会作为
   `extension_ui_request` 事件下发（已用真实 pi 0.87 RPC 验证：
   `mcp`、`magic-context`、`pi-quotas-*` 等扩展在会话启动时就会写入）。
   主进程按 pi 内置 footer 的同一套规则合成整行：**key 字典序排序 → 清洗
   （`\r \n \t` 折空格、连续空格折叠、去首尾空白）→ 单空格拼接 → 剥 ANSI 颜色**，
   因此与 TUI 的顺序一致，渲染层不自己攒条目。
+- **状态行回放（服务端快照）**：主进程持有权威条目集合，并把当前行作为
+  `AgentRuntimeState.extensionStatusLine` 随 runtime 状态下发；渲染层换绑 / 新代际 /
+  重挂载时会直接采用它，因此不用等「下一次 setStatus」就有内容，字段缺失即清空。
+  这条链路借鉴 `@agegr/pi-web` 的做法（它把 pi 内嵌在服务端进程里、状态存会话状态随快照下发，
+  所以那边不存在「要预热」的问题；PiDeck 走子进程模型，只能把启动成本显式化）。
+- **prewarm 档：打开会话即预热 runtime**：状态来自扩展，只有活着的 pi 进程才会发事件；
+  PiDeck 默认懒启动（输入框有内容才预热），不补这一步的话点开纯历史会话看不到状态行，
+  要先在输入框里触发一次交互才出现。`prewarm` 档由
+  `hooks/useComposerStatusLineActivation.ts` 在会话打开时调一次
+  `sessions.activateRuntime`（幂等：已有活进程直接复用），
+  每个会话每次挂载只请求一次；`off` / `on` 档行为与未引入该功能时完全一致。
+  代价：为每个打开的会话起/复用 pi 进程（受闲置自动释放的保留数约束，聚焦中的会话不会被回收），
+  这是用户显式选择的档位（设置项描述里已说明）。
 - **边界**：pi 自家 footer 的 pwd / 花费 / 上下文百分比由 TUI 交互层渲染，
   RPC 模式不提供（`setFooter` 在 RPC 下是空实现）——这一行只包含扩展状态条目；
   无条目时整行卸载（不占高度）。
-- **打开会话即预热 runtime**（2026-09 追加）：状态来自扩展，只有活着的 pi 进程才会发事件；
-  PiDeck 默认懒启动（输入框有内容才预热），不补这一步的话点开纯历史会话看不到状态行，
-  要先在输入框里触发一次交互才出现。因此开关开启时由
-  `hooks/useComposerStatusLineActivation.ts` 在会话打开时调一次
-  `sessions.activateRuntime`（幂等：已有活进程直接复用），
-  每个会话每次挂载只请求一次；开关关闭时行为与未引入该功能时完全一致。
-  代价：开启该开关会为每个打开的会话起/复用 pi 进程（受闲置自动释放的保留数约束），
-  这是用户显式选择（设置项描述里已说明）。
 - **相关文件**：`src/main/pi/extensionStatusLine.ts`（纯函数 + 单测）、
-  `src/main/pi/AgentManager.ts`（按 runtime 收集并合成下发，`clearAgentState` 清理）、
-  `src/shared/types/agent.ts`（`statusKey` / `statusLine`）、
-  `src/renderer/src/atoms/session-atoms.ts`（`SessionRuntimeUiState.statusLine` +
+  `src/main/pi/AgentManager.ts`（按 runtime 收集并合成下发 + 快照回放，`clearAgentState` 清理）、
+  `src/shared/types/agent.ts`（`statusKey` / `statusLine` / `AgentRuntimeState.extensionStatusLine`）、
+  `src/renderer/src/atoms/session-atoms.ts`（`SessionRuntimeUiState.statusLine` + 回放 +
   按 session 的 `selectAtom` family）、`src/renderer/src/components/session/ComposerStatusLine.tsx`、
-  `ComposerArea.tsx`、`src/renderer/src/atoms/app-ui-atoms.ts`（开关 atom）。
-- **测试**：`tests/extensionStatusLine.test.mjs`（合成/清洗/清除规则）、
-  `tests/sessionRuntimeUi.test.mjs`（存/清状态流转）。
+  `ComposerArea.tsx`、`src/renderer/src/atoms/app-ui-atoms.ts`（档位 atom）、
+  `src/renderer/src/utils/statusLineRuntimeActivation.ts`、`src/renderer/src/hooks/useComposerStatusLineActivation.ts`。
+- **测试**：`tests/extensionStatusLine.test.mjs`（合成/清洗/清除规则 + 装配口径）、
+  `tests/sessionRuntimeUi.test.mjs`（存/清 + 回放）、
+  `tests/statusLineRuntimeActivation.test.mjs`（预热判据）、
+  `tests/composerStatusLineMode.test.mjs`（三档解析与旧布尔迁移）。

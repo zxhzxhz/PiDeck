@@ -949,6 +949,16 @@ function applySessionRuntimeUiEvent(current: SessionRuntimeUiState | undefined, 
 			revision: base.revision + 1,
 		};
 	}
+	if (event.sourceChannel === "agents:runtime-state" && payload?.state) {
+		// 扩展状态行回放：主进程把当前行随 runtime 状态下发（权威快照），
+		// 渲染层在这里直接采用——换绑/新代际后 UI 状态被重建时也能立即有内容，
+		// 不必等下一次 extension 事件（pi-web 的做法：状态存服务端会话状态随快照下发）。
+		// 字段缺失 = 主进程当前无条目 → 清空该行。
+		const stateRecord = payload.state as Record<string, unknown>;
+		const replayed = typeof stateRecord.extensionStatusLine === "string" && stateRecord.extensionStatusLine.trim() ? stateRecord.extensionStatusLine : undefined;
+		if (base.statusLine !== replayed) return { ...base, revision: base.revision + 1, statusLine: replayed };
+		return bindingChanged ? base : current;
+	}
 	if (event.sourceChannel !== "agents:ui-request") return bindingChanged ? base : current;
 	const request = toAgentUiRequest(payload, event.agentId);
 	if (!request) return base;

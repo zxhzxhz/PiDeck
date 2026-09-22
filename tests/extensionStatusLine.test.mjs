@@ -73,7 +73,7 @@ test("sanitizeStatusLineText 不改变正常文本", () => {
  *  2. 渲染层把 statusLine 挂进运行期 UI 状态（session-atoms），ComposerArea 渲染该行；
  *  3. 开关（showComposerStatusLine）在设置页与两份 i18n 里都存在。
  */
-test("status line wiring: main composes and clears, renderer mounts, setting exists", () => {
+test("status line wiring: main composes and replays, renderer mounts, setting exists", () => {
 	const read = (path) => readFileSync(path, "utf8");
 
 	const agentManager = read("src/main/pi/AgentManager.ts");
@@ -81,27 +81,47 @@ test("status line wiring: main composes and clears, renderer mounts, setting exi
 	assert.match(agentManager, /this\.extensionStatusByAgent/, "AgentManager 必须持有 per-runtime 状态条目");
 	assert.match(agentManager, /applyExtensionStatus\(statuses, statusKey/, "setStatus 必须累积到条目集合");
 	assert.match(agentManager, /statusLine: composeExtensionStatusLine\(statuses\)/, "下发的 payload 必须带合成后的整行");
+	// 回放：当前行要随 runtime 状态下发，渲染层重建/换绑后不必等下一次 setStatus。
+	assert.match(agentManager, /const extensionStatusLine = composeExtensionStatusLine\(this\.extensionStatusByAgent\.get\(agentId\)\);/, "getRuntimeState 必须合成当前状态行快照");
+	assert.match(agentManager, /\.\.\.\(extensionStatusLine \? \{ extensionStatusLine \} : \{\}\)/, "runtime 状态必须带 extensionStatusLine（无条目才省略）");
 	// runtime 生命周期清理：否则重启后残留上一进程的状态行。
 	assert.match(agentManager, /private clearAgentState\(agentId: string\) \{[\s\S]{0,4000}?this\.extensionStatusByAgent\.delete\(agentId\)/, "clearAgentState 必须清理状态条目");
 
 	const composerArea = read("src/renderer/src/components/session/ComposerArea.tsx");
-	assert.match(composerArea, /statusLine={<ComposerStatusLine sessionId=\{props\.sessionId\} \/>}/, "ComposerArea 必须在输入卡下方挂载状态行");
+	assert.match(composerArea, /statusLine=\{<ComposerStatusLine sessionId=\{props\.sessionId\} \/>\}/, "ComposerArea 必须在输入卡下方挂载状态行");
 	assert.match(composerArea, /\{props\.composerBox\}\s*\{props\.statsLine\}\s*\{props\.statusLine\}/, "状态行必须排在 statsLine 之后（TUI 底栏位置）");
 
-	// 打开会话即预热 runtime（否则纯历史会话要等用户敲一次输入才出现状态行）。
-	const composerAreaSrc = read("src/renderer/src/components/session/ComposerArea.tsx");
-	assert.match(composerAreaSrc, /useComposerStatusLineActivation\(\{/, "ComposerArea 必须接入状态行预热 hook");
-	assert.match(composerAreaSrc, /runtimeLive: isLiveRuntimeStatus\(composer\.runtime\?\.status\)/, "预热判据必须带上当前 runtime 是否活着");
+	// 预热：只有 prewarm 档才在打开会话时激活 runtime（否则纯历史会话要等用户敲一次输入才出现状态行）。
+	assert.match(composerArea, /useComposerStatusLineActivation\(\{/, "ComposerArea 必须接入状态行预热 hook");
+	assert.match(composerArea, /mode: statusLineMode,/, "预热 hook 必须拿到三档模式");
+	assert.match(composerArea, /runtimeLive: isLiveRuntimeStatus\(composer\.runtime\?\.status\)/, "预热判据必须带上当前 runtime 是否活着");
 	const activationHook = read("src/renderer/src/hooks/useComposerStatusLineActivation.ts");
 	assert.match(activationHook, /desktopApi\.sessions\.activateRuntime\(sessionId\)/, "预热必须走既有的 activateRuntime（幂等复用活进程）");
 	assert.match(activationHook, /shouldActivateRuntimeForStatusLine\(/, "预热判据必须是可单测的纯函数（见 statusLineRuntimeActivation.test.mjs）");
 	assert.match(activationHook, /requestedRef\.current = sessionId;/, "每个会话每次挂载只请求一次（护栏先落再发请求）");
-	// 开关：默认关的 PiDeck 设置 + 设置页开关行 + 中英文案。
+	assert.match(read("src/renderer/src/utils/statusLineRuntimeActivation.ts"), /input\.mode === "prewarm"/, "只有 prewarm 档触发激活");
+
+	// 渲染层：回放分支必须写进运行期 UI 状态。
+	assert.match(read("src/renderer/src/atoms/session-atoms.ts"), /stateRecord\.extensionStatusLine/, "session-atoms 必须消费 runtime 状态里的 extensionStatusLine 回放");
+	assert.match(read("src/renderer/src/components/session/ComposerStatusLine.tsx"), /mode === "off"/, "off 档不渲染状态行");
+
+	// 三档设置：PiDeck 设置字段 + 默认值 + 设置页下拉（三个选项）+ 中英文案。
 	const settingsType = read("src/shared/types/settings.ts");
-	assert.match(settingsType, /showComposerStatusLine: boolean;/);
-	assert.match(read("src/main/settings/SettingsStore.ts"), /showComposerStatusLine: false,/);
-	assert.match(read("src/renderer/src/components/app/settings/CommonTab.tsx"), /common-show-composer-status-line/);
+	assert.match(settingsType, /composerStatusLineMode: ComposerStatusLineMode;/);
+	assert.match(settingsType, /export type ComposerStatusLineMode = "off" \| "on" \| "prewarm";/);
+	assert.match(read("src/main/settings/SettingsStore.ts"), /composerStatusLineMode: "off",/);
+	// 旧布尔开关的迁移必须映射成 prewarm（旧 true 的行为就是「显示 + 打开即预热」）。
+	assert.match(read("src/main/settings/SettingsStore.ts"), /parseComposerStatusLineMode\(this\.settings\.composerStatusLineMode/, "SettingsStore 必须迁移旧布尔开关");
+	const commonTab = read("src/renderer/src/components/app/settings/CommonTab.tsx");
+	assert.match(commonTab, /anchor="common-composer-status-line"/);
+	for (const value of ["off", "on", "prewarm"]) {
+		// 用字面量包含判断而不是正则：选项行里有未转义的 "(" 与引号，拼 RegExp 容易踩转义坑。
+		assert.ok(commonTab.includes(`value: "${value}", label: t("settings.composerStatusLine`), `设置页缺少 ${value} 选项`);
+	}
 	for (const locale of ["zh-CN", "en-US"]) {
-		assert.match(read(`src/renderer/src/i18n/rendererCopy.${locale}.ts`), /"settings\.showComposerStatusLine"/, `${locale} 缺少状态行开关文案`);
+		const copy = read(`src/renderer/src/i18n/rendererCopy.${locale}.ts`);
+		for (const key of ["settings.composerStatusLine", "settings.composerStatusLineOff", "settings.composerStatusLineOn", "settings.composerStatusLinePrewarm"]) {
+			assert.match(copy, new RegExp(`"${key.replace(/\./g, "\.")}"`), `${locale} 缺少 ${key} 文案`);
+		}
 	}
 });

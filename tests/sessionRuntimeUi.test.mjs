@@ -487,3 +487,45 @@ test("extension status line is stored verbatim and cleared by an empty payload",
 	);
 	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, undefined);
 });
+
+/**
+ * 扩展状态行的「回放」通道：主进程把当前行随 runtime 状态下发
+ * （AgentRuntimeState.extensionStatusLine），渲染层在换绑/新代际/重挂载后
+ * 不必等下一次 setStatus 就能立刻拿到内容（对照 pi-web 的服务端快照做法）。
+ * 状态快照是权威的：字段缺失即清空，不能让旧行残留。
+ */
+test("runtime state snapshot replays the extension status line and clears it when absent", () => {
+	const atoms = loadAtoms();
+	const store = createStore();
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			sourceChannel: "agents:runtime-state",
+			payload: { agentId: "agent-a", state: { extensionStatusLine: "Turn: $0.00000 mc: 0 (0%)" } },
+		}),
+	);
+	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, "Turn: $0.00000 mc: 0 (0%)");
+
+	// 后续快照里没有该字段（主进程已无条目）→ 清空，避免显示过期状态。
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			sourceChannel: "agents:runtime-state",
+			payload: { agentId: "agent-a", state: { modelId: "gpt-5" } },
+		}),
+	);
+	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, undefined);
+
+	// 换绑（新代际 + 新 agentId）后快照带新行 → 采用新内容，不继承上一 runtime 的。
+	// 同代际换 agentId 属于迟到事件、按设计被拒（见 atom 顶部的身份守卫）。
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			sourceChannel: "agents:runtime-state",
+			agentId: "agent-b",
+			runtimeGeneration: 2,
+			payload: { agentId: "agent-b", state: { extensionStatusLine: "🔌 MCP: 1 server enabled" } },
+		}),
+	);
+	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, "🔌 MCP: 1 server enabled");
+});

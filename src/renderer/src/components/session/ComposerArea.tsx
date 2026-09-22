@@ -17,7 +17,7 @@ import { COMPOSER_TEXT_MAX_HEIGHT } from "../../rendererUtils";
 import { chatContentWidthStyle } from "./chatContentWidth";
 import { ComposerStatsLine } from "./ComposerStatsLine";
 import { ComposerStatusLine } from "./ComposerStatusLine";
-import { composerStatusLineEnabledAtom } from "../../atoms/app-ui-atoms";
+import { composerStatusLineModeAtom } from "../../atoms/app-ui-atoms";
 import { useComposerStatusLineActivation } from "../../hooks/useComposerStatusLineActivation";
 import { ComposerWidgetLayoutProvider, type ComposerWidgetCollapsedByKey, useComposerWidgetLayoutValue } from "./ComposerWidgetLayout";
 import type { GitBranchInfo } from "../../../../shared/types";
@@ -114,11 +114,11 @@ export const ComposerArea = forwardRef<HTMLElement, ComposerAreaProps>(function 
 
 	const modelPendingMap = useAtomValue(modelPendingByIdAtom);
 
-	// 扩展状态行开关：开启时派生的预热效果（见 hook 注释）与行渲染共用同一 atom。
-	const statusLineEnabled = useAtomValue(composerStatusLineEnabledAtom);
+	// 扩展状态行档位：渲染（ComposerStatusLine 内部读同一 atom）与 prewarm 预热共用。
+	const statusLineMode = useAtomValue(composerStatusLineModeAtom);
 	useComposerStatusLineActivation({
 		sessionId: props.sessionId,
-		enabled: statusLineEnabled,
+		mode: statusLineMode,
 		backend: composer.backend,
 		hasSessionRecord: Boolean(composer.record),
 		runtimeLive: isLiveRuntimeStatus(composer.runtime?.status),

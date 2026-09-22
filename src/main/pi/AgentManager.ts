@@ -2387,6 +2387,10 @@ export class AgentManager {
 		const cacheHitPercent = clampPercent(directCacheHitPercent ?? fileHitStats.latest);
 		const cacheHitAveragePercent = clampPercent(fileHitStats.average);
 		const perf = this.lastPerfByAgent.get(agentId);
+		// 扩展状态行（TUI 底栏最后一行）：主进程持有权威快照（per-runtime 条目集合），
+		// 随 runtime 状态一起回放，让渲染层重建/换绑/重挂载后立即有内容，
+		// 不必等下一次 setStatus（参考 pi-web：状态存在服务端会话状态里随快照下发）。
+		const extensionStatusLine = composeExtensionStatusLine(this.extensionStatusByAgent.get(agentId));
 		return {
 			modelName: model?.name ?? model?.id,
 			provider: model?.provider,
@@ -2418,6 +2422,8 @@ export class AgentManager {
 			totalMs: perf?.totalMs,
 			tps: perf?.tps,
 			perfAt: perf?.at,
+			// 无条目时省略字段 = 渲染层清空该行（状态快照是权威的）。
+			...(extensionStatusLine ? { extensionStatusLine } : {}),
 		};
 	}
 

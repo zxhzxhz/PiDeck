@@ -2,6 +2,7 @@ import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import type { BusySendDelivery } from "../../../shared/busySendDelivery";
 import type { AgentBackend } from "../../../shared/types";
+import type { ComposerStatusLineMode } from "../../../shared/types/settings";
 import type { QuickMessagesSnapshot } from "../../../shared/types/quickMessages";
 import { resolveEffectiveAgentBackend } from "../../../shared/types/dshRuntime";
 import { dshRuntimeStatusAtom } from "./dsh-atoms";
@@ -144,8 +145,8 @@ export const turnFlowSettingsAtom = atom<TurnFlowSettings>({
 });
 
 /**
- * 输入卡下方「扩展状态行」（pi TUI 底栏最后一行）开关。
- * 与 turnFlowSettingsAtom 同构：App 从 settings 同步写入，ComposerStatusLine 直接订阅，
- * 避免为一行文本从 App 透传到 ComposerArea。默认关（不占默认布局的一行）。
+ * 输入卡下方「扩展状态行」（pi TUI 底栏最后一行）的档位。
+ * 与 turnFlowSettingsAtom 同构：App 从 settings 同步写入，ComposerStatusLine 与预热 hook
+ * 直接订阅，避免为一行文本从 App 透传到 ComposerArea。默认 off（不占默认布局）。
  */
-export const composerStatusLineEnabledAtom = atom<boolean>(false);
+export const composerStatusLineModeAtom = atom<ComposerStatusLineMode>("off");

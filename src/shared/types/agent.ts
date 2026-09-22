@@ -104,6 +104,12 @@ export type AgentRuntimeState = {
 	executingToolName?: string;
 	/** 工具状态事件的单调序号，用于忽略晚到的异步完整状态。 */
 	toolStateSequence?: number;
+	/**
+	 * pi 扩展状态行（TUI 底栏最后一行）的当前内容，由主进程按 pi footer 的规则合成。
+	 * 随 runtime 状态一起下发（回放），使渲染层重建/换绑后能立即有内容，
+	 * 而不依赖「下一次 extension 事件」；undefined = 当前无状态条目。
+	 */
+	extensionStatusLine?: string;
 	contextTokens?: number | null;
 	contextWindow?: number | null;
 	contextPercent?: number | null;

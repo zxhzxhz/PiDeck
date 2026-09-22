@@ -173,6 +173,12 @@ export const SETTINGS_FIELD_ANCHORS: readonly SettingsFieldAnchor[] = [
 	},
 	{
 		tab: "common",
+		slug: "common-composer-status-line",
+		labelKey: "settings.composerStatusLine",
+		keywords: ["状态行", "底栏", "扩展状态", "setStatus", "status line", "footer", "配额", "用量", "预热"],
+	},
+	{
+		tab: "common",
 		slug: "common-idle-agent-auto-release",
 		labelKey: "settings.idleAgentAutoRelease",
 		keywords: ["闲置释放", "内存优化", "idle", "自动关闭 agent", "省内存"],

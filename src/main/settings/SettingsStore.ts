@@ -13,6 +13,7 @@ import { clampSessionTabMaxWidth, SESSION_TAB_MAX_WIDTH_DEFAULT } from "../../sh
 import { getAppLogger } from "../logging/sharedLogger";
 import { setConfiguredGitPath } from "../git/gitExecutable";
 import { renameWithRetry } from "../utils/fsRetry";
+import { parseComposerStatusLineMode } from "./composerStatusLineMode";
 
 /** 桌面端 settings.json（userData），与 pi agent settings 分离 */
 function desktopSettingsPath() {
@@ -260,8 +261,8 @@ Gitmoji 对应关系：
 	// 模型列表水合默认加载扩展（慢速档）：模型选择器能看到扩展贡献的 provider
 	// （如 pi-clinepass 的 clinepass）。首开多等约 2s，换来「装了就有」的预期。
 	piModelListLoadExtensions: true,
-	// 输入卡下方扩展状态行默认关：不占默认布局，用户显式开启才显示。
-	showComposerStatusLine: false,
+	// 输入卡下方扩展状态行默认关；三档见 AppSettings.composerStatusLineMode。
+	composerStatusLineMode: "off",
 
 	// 字体配置：默认使用系统字体；用户可通过自定义字体设置修改。
 	// 出厂默认取 "default" 档：与 CSS token 基线（:root 无覆盖时）一致，
@@ -360,6 +361,10 @@ export class SettingsStore {
 			// 兼容迁移：按供应商/模型过滤的代理白名单，旧数据缺省为 []（不按名单过滤，保持全局行为）。
 			this.normalizePiProxyProviders();
 			this.normalizePiProxyModels();
+			// 兼容迁移：状态行从布尔开关（showComposerStatusLine）改为三档（off/on/prewarm）。
+			// 旧 true 当时就是「显示 + 打开即预热」，因此映射为 "prewarm"，不能降成 "on"（会让老用户
+			// 升级后又变成「要先输入才出现」）；脏值/缺省统一回落 "off"。
+			this.settings.composerStatusLineMode = parseComposerStatusLineMode(this.settings.composerStatusLineMode, (parsed as { showComposerStatusLine?: unknown }).showComposerStatusLine);
 			// 生图尺寸/水印来自旧 JSON 时可能非法；回落默认，避免底栏和下一次请求带着坏值。
 			this.settings.imageGenSize = parseImageGenSize(this.settings.imageGenSize) ?? DEFAULT_IMAGE_GEN_SIZE;
 			this.settings.imageGenWatermark = parseImageGenWatermark(this.settings.imageGenWatermark, DEFAULT_IMAGE_GEN_WATERMARK);

@@ -51,6 +51,12 @@ export const CommonTab = memo(function CommonTab(props: CommonTabProps) {
 		{ value: "split", label: t("settings.workspaceContentOpenMode.split") },
 		{ value: "maximize", label: t("settings.workspaceContentOpenMode.maximize") },
 	];
+	// 扩展状态行三档：off / on / prewarm（见 shared 类型 ComposerStatusLineMode）。
+	const composerStatusLineModeOptions: SelectOption[] = [
+		{ value: "off", label: t("settings.composerStatusLineOff") },
+		{ value: "on", label: t("settings.composerStatusLineOn") },
+		{ value: "prewarm", label: t("settings.composerStatusLinePrewarm") },
+	];
 	const busySendDeliveryOptions: SelectOption[] = [
 		{ value: "steer", label: t("settings.busySendDeliverySteer") },
 		{ value: "followUp", label: t("settings.busySendDeliveryFollowUp") },
@@ -291,8 +297,34 @@ export const CommonTab = memo(function CommonTab(props: CommonTabProps) {
 				{/* 流式对话设置：中间过程与本轮修改文件的默认展示行为。 */}
 				<SettingSwitchRow anchor="common-expand-interim-during-stream" title={t("settings.expandInterimDuringStream")} description={t("settings.expandInterimDuringStreamDesc")} checked={draft.expandInterimDuringStream} onChange={(checked) => updateDraft({ expandInterimDuringStream: checked })} />
 				<SettingSwitchRow anchor="common-collapse-prev-runs" title={t("settings.collapsePrevRunsOnNewTurn")} description={t("settings.collapsePrevRunsOnNewTurnDesc")} checked={draft.collapsePrevRunsOnNewTurn} onChange={(checked) => updateDraft({ collapsePrevRunsOnNewTurn: checked })} />
-				{/* 扩展状态行：输入卡下方复刻 pi TUI 底栏最后一行（扩展 setStatus 文本）。 */}
-				<SettingSwitchRow anchor="common-show-composer-status-line" title={t("settings.showComposerStatusLine")} description={t("settings.showComposerStatusLineDesc")} checked={draft.showComposerStatusLine} onChange={(checked) => updateDraft({ showComposerStatusLine: checked })} />
+				{/* 扩展状态行：输入卡下方复刻 pi TUI 底栏最后一行（扩展 setStatus 文本）。
+					做成三档而不是开关：状态由扩展产生，只有活着的 pi 进程才有内容——
+					「打开」不为它启动进程（纯浏览历史不起进程），
+					「打开并预热」则在打开会话时把进程拉起来，代价写进描述里。 */}
+				<SettingRow
+					anchor="common-composer-status-line"
+					title={
+						<>
+							<span>{t("settings.composerStatusLine")}</span>
+							<DirtyMarker dirty={isDirty("composerStatusLineMode")} label={t("settings.composerStatusLine")} />
+						</>
+					}
+					description={t("settings.composerStatusLineDesc")}
+					alignEnd={false}
+				>
+					<Select value={draft.composerStatusLineMode ?? "off"} onValueChange={(value) => updateDraft({ composerStatusLineMode: value as AppSettings["composerStatusLineMode"] })}>
+						<SelectTrigger className="w-full">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{composerStatusLineModeOptions.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</SettingRow>
 			</SettingsSection>
 
 			{/* 快捷消息：数据在 userData/quick-messages.json，本区自持编辑状态并即时落盘（不参与全局草案/取消）。 */}

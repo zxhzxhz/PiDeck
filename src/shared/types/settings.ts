@@ -34,6 +34,14 @@ export type AppFontSizeMode = "compact" | "default" | "medium" | "large" | "xlar
 /** 更新源：atomgit = 国内 AtomGit 源（默认首选）；github = 官方 GitHub Release。 */
 export type UpdateSourceId = "atomgit" | "github";
 
+/**
+ * 输入卡下方扩展状态行的行为档位（见 AppSettings.composerStatusLineMode）。
+ * - off：关闭；
+ * - on：只显示，不为状态行启动 pi（无活进程时不出现）；
+ * - prewarm：显示 + 打开会话即预热 pi 运行进程。
+ */
+export type ComposerStatusLineMode = "off" | "on" | "prewarm";
+
 /** 内置镜像体检状态：ok=检测+下载预检全通；slow=通但实测速度低于阈值；broken=失败/超时/响应异常。 */
 export type MirrorHealthStatus = "ok" | "slow" | "broken";
 
@@ -446,10 +454,16 @@ export type AppSettings = {
 	 */
 	piModelListLoadExtensions: boolean;
 	/**
-	 * 在输入卡下方显示扩展状态行（等价于 pi TUI 底栏的最后一行）。
-	 * 内容来自扩展 `ctx.ui.setStatus(key, text)`；无状态条目时不占高度。默认关。
+	 * 输入卡下方扩展状态行（等价于 pi TUI 底栏最后一行）的行为：
+	 * - `"off"`（默认）：不显示，与未引入该功能时完全一致；
+	 * - `"on"`：显示；状态内容来自扩展 `ctx.ui.setStatus`，需要该会话有活着的 pi 进程
+	 *   （没有活进程时这一行不出现，但也不会为它主动起进程）；
+	 * - `"prewarm"`：显示并预热——打开会话即激活 pi 运行进程，
+	 *   点开会话就能看到状态行（代价：为每个打开的会话起/复用 pi 进程）。
+	 * 旧版布尔开关 `showComposerStatusLine` 按当时行为迁移为 `"prewarm"/"off"`，
+	 * 见 `main/settings/composerStatusLineMode.ts`。
 	 */
-	showComposerStatusLine: boolean;
+	composerStatusLineMode: ComposerStatusLineMode;
 
 	// ── 侧栏 UI 状态 ──
 	/**
