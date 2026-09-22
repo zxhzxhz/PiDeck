@@ -2970,6 +2970,11 @@ function registerIpc() {
 		reactToPetSettings: async (prev, next) => {
 			await petSystem?.reactToSettings(prev, next);
 		},
+		// 模型列表水合档位（piModelListLoadExtensions）切换后立即重建快照：
+		// 不重建的话选择器仍持旧档位的模型集，用户会以为开关没生效。
+		refreshModelCapabilities: () => {
+			void piModelCapabilityCache?.refresh().catch(() => undefined);
+		},
 		applyNativeThemeSource,
 		refreshTrayContextMenu,
 		// 语言变更时按当前主进程 locale 重算，忽略 systemIpc 传入的占位参数
@@ -3642,7 +3647,9 @@ app
 				return true;
 			},
 			listModels: async (force?: boolean) => {
-				const snapshot = force ? await piModelCapabilityCache?.refresh() : await piModelCapabilityCache?.ensure();
+				// 手动刷新（force）与桌面选择器的刷新按钮同口径：显式加载扩展补回扩展贡献模型；
+				// 非 force 走默认档（设置 piModelListLoadExtensions）。
+				const snapshot = force ? await piModelCapabilityCache?.refresh({ loadExtensions: true }) : await piModelCapabilityCache?.ensure();
 				return snapshot?.models ?? (force ? refreshModelList(piLocator, settingsStore, configManager) : fetchModelList(piLocator, settingsStore, configManager));
 			},
 			listSessions: (projectId) => {
@@ -3847,15 +3854,17 @@ app
 		refreshShortcutBindings(settingsStore.get());
 		piModelCapabilityCache = new PiModelCapabilityCache({
 			// 模型能力水合分两档（详见 docs/pi-model-capability-plan.md）：
-			// - 快速档（默认，loadExtensions=false）：--no-extensions。实测 418 模型下
-			//   冷启动从 ~2.4s 降到 ~0.37s（扩展加载就是 hydration 的绝对大头）。
-			// - 慢速档（loadExtensions=true）：仅模型选择器的手动刷新按钮触发，付扩展
-			//   加载成本把 pi.registerProvider 贡献的模型（issue #181，如 antigravity
-			//   插件）补回选择器——这是扩展模型的唯一入口。
+			// - 快速档（loadExtensions=false）：--no-extensions。实测 418 模型下冷启动
+			//   从 ~2.4s 降到 ~0.37s（扩展加载就是 hydration 的绝对大头）。
+			// - 慢速档（loadExtensions=true）：加载扩展，把 pi.registerProvider 贡献的模型
+			//   （issue #181，如 pi-clinepass / antigravity 插件）补回选择器。
+			// 默认走哪一档由设置 piModelListLoadExtensions 决定（默认开 = 慢速档，见该字段注释）；
+			// 模型选择器的刷新按钮仍可显式传 loadExtensions: true 强制补回。
 			// 用户全局勾了 piRpcNoExtensions（开发设置诊断开关）时慢速档仍不加载扩展：
 			// 显式设置优先，诊断路径不能被刷新按钮绕过。
 			// 慢速档下用户禁用的扩展仍经 createPiProcessExtensionResolvers 白名单过滤，
 			// 泄漏不进来。
+			defaultLoadExtensions: () => settingsStore.get().piModelListLoadExtensions,
 			createProcess: ({ loadExtensions }) =>
 				new PiProcess(
 					process.cwd(),

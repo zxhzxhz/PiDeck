@@ -29,7 +29,7 @@ import { buildSettingsCommands, type PaletteCommand } from "./utils/commandPalet
 import { CommandPalette } from "./components/overlays/CommandPalette";
 import { CommandPaletteOnboarding, markCommandPaletteOnboardingSeen } from "./components/overlays/CommandPaletteOnboarding";
 import { desktopApi as api, isLanWeb, missingElectronPreload } from "./desktopApi";
-import { turnFlowSettingsAtom, defaultAgentBackendAtom, effectiveAgentBackendAtom, busySendDeliveryAtom, imageGenConfigAtom, dshRuntimeStatusAtom, openSettingsAtom, openAutomationModalAtom, sessionRecordsAtom, bumpNewTurnCollapseTickAtom } from "./atoms";
+import { turnFlowSettingsAtom, composerStatusLineEnabledAtom, defaultAgentBackendAtom, effectiveAgentBackendAtom, busySendDeliveryAtom, imageGenConfigAtom, dshRuntimeStatusAtom, openSettingsAtom, openAutomationModalAtom, sessionRecordsAtom, bumpNewTurnCollapseTickAtom } from "./atoms";
 import { resolveBusySendDelivery } from "../../shared/busySendDelivery";
 import { SESSION_TAB_MAX_WIDTH_DEFAULT } from "../../shared/sessionTabWidth";
 import { FILE_TREE_ABSOLUTE_MAX_DEPTH } from "../../shared/fileTree";
@@ -729,6 +729,9 @@ export function App() {
 		piRpcOffline: false,
 		piRpcNoExtensions: false,
 		piRpcNoSkills: false,
+		// 与主进程 defaultSettings 保持一致：模型列表水合默认加载扩展（慢速档）
+		piModelListLoadExtensions: true,
+		showComposerStatusLine: false,
 	});
 
 	// 流式对话行为设置同步给 turn 组件（TurnRow 直接订阅 atom，避免 5 层 props 透传；
@@ -740,6 +743,13 @@ export function App() {
 			collapsePrevRunsOnNewTurn: settings.collapsePrevRunsOnNewTurn,
 		});
 	}, [settings.expandInterimDuringStream, settings.collapsePrevRunsOnNewTurn, setTurnFlowSettings]);
+
+	// 输入卡下方扩展状态行开关同步给会话视图（ComposerStatusLine 直接订阅 atom）：
+	// 设置面板保存后立即生效，不需要重挂载会话，与 turnFlowSettings 同一模式。
+	const setComposerStatusLineEnabled = useSetAtom(composerStatusLineEnabledAtom);
+	useEffect(() => {
+		setComposerStatusLineEnabled(settings.showComposerStatusLine);
+	}, [settings.showComposerStatusLine, setComposerStatusLineEnabled]);
 
 	// 新建会话默认后端同步给根级组件（并行问询 AskPanel 等不持有 settings props）。
 	const setDefaultAgentBackend = useSetAtom(defaultAgentBackendAtom);

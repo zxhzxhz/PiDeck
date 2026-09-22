@@ -2250,6 +2250,9 @@ export const enUS: Record<TranslationKey, string> = {
 	"config.label.defaultModel": "Default Model",
 	"config.defaults.title": "Default Provider & Model",
 	"config.defaults.hint": "Always visible even if these keys are absent from settings.json (empty = not set). When empty, pi auto-selects: the first provider with credentials, and its first model.",
+	"config.defaults.modelListLoadExtensions": "Load extensions for the model list (slow path)",
+	"config.defaults.modelListLoadExtensionsDesc":
+		"On: the model list is produced by a pi process with extensions loaded, so providers registered by extensions (e.g. pi-clinepass's clinepass) are listed. The first build takes about 2 seconds. Off: fast path with --no-extensions (about 0.4s), but extension-provided models never appear in the model picker. Applies immediately, no save needed.",
 	"config.general.title": "General Behavior",
 	"config.general.hint": "Always-visible entries for high-frequency pi settings. Empty values are not written; they only take effect after saving.",
 	"config.general.thinkingLevelPlaceholder": "Not set (default)",
@@ -3774,6 +3777,8 @@ export const enUS: Record<TranslationKey, string> = {
 	"settings.workspaceContentOpenMode": "File / Diff open mode",
 	"settings.expandInterimDuringStream": "Expand interim process while streaming",
 	"settings.expandInterimDuringStreamDesc": "On (default): thinking and tool details auto-expand while the latest turn streams. Off: keep them collapsed to save rendering resources; manually expanded turns are unaffected.",
+	"settings.showComposerStatusLine": "Show extension status line under the composer",
+	"settings.showComposerStatusLineDesc": "Shows the last line of pi's TUI footer: statuses written by extensions via ctx.ui.setStatus (quotas, usage, context, task progress), joined with pi's own ordering and spacing rules. Collapses to nothing when there are no status entries.",
 	"settings.collapsePrevRunsOnNewTurn": "Collapse previous turns on new message",
 	"settings.collapsePrevRunsOnNewTurnDesc": "Automatically collapses thinking/tool details of previous turns (including manually expanded ones) after sending a new message, reducing what is rendered at once.",
 	"settings.idleAgentSection": "Idle agent memory optimization",

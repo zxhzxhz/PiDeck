@@ -284,6 +284,13 @@ export type AgentUiRequest = {
 	widgetKey?: string;
 	widgetLines?: string[];
 	widgetPlacement?: "aboveEditor" | "belowEditor";
+	/** setStatus：状态条目 key（pi 扩展 ctx.ui.setStatus）。 */
+	statusKey?: string;
+	/**
+	 * setStatus 合成后的整行文本（等价于 pi TUI 底栏最后一行）：
+	 * 全部条目按 key 字典序排序、清洗后单空格拼接。空/无条目时为 undefined。
+	 */
+	statusLine?: string;
 	/** A batched ask_question envelope rendered as tabs in the session timeline footer. */
 	batchQuestions?: AgentUiBatchQuestion[];
 	batchReview?: boolean;

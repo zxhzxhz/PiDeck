@@ -129,6 +129,11 @@ export type SessionRuntimeUiState = {
 		text: string;
 		revision: number;
 	};
+	/**
+	 * pi 扩展状态行（TUI 底栏最后一行）：由主进程按 pi footer 的规则合成后下发。
+	 * undefined = 当前无状态条目（或 runtime 已被回收），渲染层据此隐藏整行。
+	 */
+	statusLine?: string;
 	revision: number;
 };
 
@@ -149,6 +154,11 @@ export const sidebarRuntimeAtom = selectAtom(sessionRuntimeByIdAtom, (full) => {
 	return slim;
 });
 export const sessionRuntimeUiByIdAtom = atom<Record<string, SessionRuntimeUiState>>({});
+/**
+ * 单会话扩展状态行（selectAtom 隔离）：其它会话的 widget/状态事件不会重渲染本栏。
+ * 与其它 family 一样无自动 GC，会话释放时必须 `.remove(sessionId)`（见 release 路径）。
+ */
+export const sessionStatusLineBySessionIdAtomFamily = atomFamily((sessionId: string) => selectAtom(sessionRuntimeUiByIdAtom, (map) => map[sessionId]?.statusLine, Object.is));
 /**
  * 会话级缓存命中率快照历史（仅存数值，最多 50 条）：
  * 用于展示「当前会话平均缓存命中率」，弥补只显示最新一次 assistant 命中率的不足。
@@ -833,6 +843,8 @@ function toAgentUiRequest(payload: Record<string, unknown>, agentId: string): Ag
 		widgetKey: typeof payload.widgetKey === "string" ? payload.widgetKey : undefined,
 		widgetLines: Array.isArray(payload.widgetLines) ? payload.widgetLines.filter((line): line is string => typeof line === "string") : undefined,
 		widgetPlacement: payload.widgetPlacement === "aboveEditor" || payload.widgetPlacement === "belowEditor" ? payload.widgetPlacement : undefined,
+		statusKey: typeof payload.statusKey === "string" ? payload.statusKey : undefined,
+		statusLine: typeof payload.statusLine === "string" ? payload.statusLine : undefined,
 		batchQuestions: batchQuestions?.length ? batchQuestions : undefined,
 		batchReview: payload.batchReview === true,
 	};
@@ -988,6 +1000,10 @@ function applySessionRuntimeUiEvent(current: SessionRuntimeUiState | undefined, 
 		if (request.widgetLines?.length) widgets[widgetKey] = request.widgetLines;
 		else delete widgets[widgetKey];
 		return { ...base, revision, widgets };
+	}
+	// 扩展状态行：主进程已经合成好整行（含空值 = 无条目），这里只存不重建。
+	if (request.method === "setStatus") {
+		return request.statusLine ? { ...base, revision, statusLine: request.statusLine } : { ...base, revision, statusLine: undefined };
 	}
 	if (!["select", "confirm", "input", "editor", "batch_ask"].includes(request.method)) {
 		return { ...base, revision };
@@ -1460,6 +1476,7 @@ export const removeSessionStateAtom = atom(null, (get, set, sessionId: string) =
 	liveTextActiveBySessionAtom.remove(sessionId);
 	liveThinkingStreamingBySessionAtom.remove(sessionId);
 	// atomFamily 无自动 GC：会话删除时必须同步 remove 各 family 实例，否则长期泄漏（2026-10）。
+	sessionStatusLineBySessionIdAtomFamily.remove(sessionId);
 	liveThinkingIdBySessionIdAtomFamily.remove(sessionId);
 	newTurnCollapseTickBySessionIdAtomFamily.remove(sessionId);
 	runStepsVisibleMemoryBySessionIdAtomFamily.remove(sessionId);

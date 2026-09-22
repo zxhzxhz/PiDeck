@@ -142,3 +142,10 @@ export const turnFlowSettingsAtom = atom<TurnFlowSettings>({
 	expandInterimDuringStream: true,
 	collapsePrevRunsOnNewTurn: true,
 });
+
+/**
+ * 输入卡下方「扩展状态行」（pi TUI 底栏最后一行）开关。
+ * 与 turnFlowSettingsAtom 同构：App 从 settings 同步写入，ComposerStatusLine 直接订阅，
+ * 避免为一行文本从 App 透传到 ComposerArea。默认关（不占默认布局的一行）。
+ */
+export const composerStatusLineEnabledAtom = atom<boolean>(false);

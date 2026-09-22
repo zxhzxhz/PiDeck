@@ -36,10 +36,10 @@
 
 临时 probe 分两档（2026-09 收敛，详见文末「扩展加载分档」）：
 
-- **快速档（默认）**：`--offline --no-themes --no-extensions --no-skills`。启动 hydration、配置保存 / 目录 watcher 失效重建全部走这一档；
-- **慢速档（手动刷新专属）**：其余相同但**不禁用扩展**，只有模型选择器右上角刷新按钮触发，用来补回扩展通过 `pi.registerProvider` 贡献的 provider 模型（issue #181，如 antigravity 插件）。
+- **默认档**：档位由 PiDeck 设置 `piModelListLoadExtensions` 决定（本 fork 默认**开** = 带扩展的慢速档，模型选择器直接列出扩展贡献的 provider）；关掉即 `--no-extensions` 快速档；
+- **手动刷新**：模型选择器右上角刷新按钮始终按带扩展执行，用来在快速档下一次性地补回扩展模型（`pi.registerProvider`，issue #181）。
 
-两档差别只在「是否加载扩展」：默认档保证选择器冷启动不被扩展加载拖慢（本机实测 418 模型：0.37s vs 2.4s），慢速档保证装了此类插件的用户仍有入口。已运行 Agent 始终以自身 runtime 与其加载的扩展为准。
+两档差别只在「是否加载扩展」：默认档设置决定「首开是否要等扩展加载」（本机实测 418 模型：0.37s vs 2.4s）；已运行 Agent 始终以自身 runtime 与其加载的扩展为准。
 
 ### 0.3 主进程所有权和事务模型
 
@@ -58,7 +58,7 @@ PiModelCapabilityCache
 
 ```text
 1. generation + 1，停止旧 probe，清空旧的精确 snapshot
-2. 启动一个 PiProcess（--mode rpc、--no-session、快速档 `--no-extensions`；只有手动刷新档才加载扩展）
+2. 启动一个 PiProcess（--mode rpc、--no-session；是否加载扩展由设置 `piModelListLoadExtensions` 决定，手动刷新档固定加载）
 3. get_available_models
 4. 对返回的每个模型顺序执行 set_model → get_available_thinking_levels
 5. 仅当 generation 仍匹配时，一次性发布完整 snapshot
@@ -106,11 +106,11 @@ type AvailableModel = {
 3. Pi ↔ DSH provider migration；
 4. Pi 自更新、custom Pi path/WSL 配置改变、版本缓存失效；
 5. watcher 发现 Pi 配置目录下 `models.json` / `auth.json` 外部变化；
-6. 手动刷新模型列表（模型选择器右上角刷新按钮，**唯一**走慢速档 `loadExtensions` 的入口）和启动 Agent 前的兜底刷新。
+6. 手动刷新模型列表（模型选择器右上角刷新按钮，**必带扩展** `loadExtensions: true`）和启动 Agent 前的兜底刷新。
 
 watcher 使用目录级、按文件名过滤、短 debounce 的策略；创建与 `dispose()` 必须在同一模块，`app` quit 时统一释放。写入路径触发显式 invalidation，不依赖 watcher 时序。首次 hydration 未完成或失败时，UI 继续用现有 fallback，不阻塞主窗口。
 
-本轮只做**进程内**缓存。每次 PiDeck 启动重新 hydration（快速档，本机实测 ≈0.4s）降低于维护跨重启 cache 的 Pi 命令、版本、模型/auth 文件指纹和安全边界的复杂度；扩展贡献的模型不在这份快照里，需要用户用刷新按钮显式补回。
+本轮只做**进程内**缓存。每次 PiDeck 启动重新 hydration 降低于维护跨重启 cache 的 Pi 命令、版本、模型/auth 文件指纹和安全边界的复杂度；是否需要为「扩展贡献的模型」付扩展加载成本，由设置 `piModelListLoadExtensions` 显式决定（本 fork 默认开 = 扩展模型直接出现在列表里；关掉后可用刷新按钮一次性补回）。
 
 ### 0.6 兼容与错误策略
 
@@ -396,7 +396,8 @@ Pi 上游从 **0.81.0** 开始提供 `get_available_thinking_levels`，但它只
 
 本机 Pi 0.84.3 实测（上述 fast flags）：`get_available_models` 返回 398 个模型、约 154KB，耗时约 605ms；同一 probe 顺序完成全部 398 次 `set_model → get_available_thinking_levels` 的总耗时约 657ms，全部成功。也就是说，完整启动 hydration 比现有一次 `pi --list-models` 冷启动多出的成本很小，却能避免用户每次换模型时重新查询。
 
-> 2026-09 更新：这段实测用的是 `--no-extensions`。实现最初按 #181 改成了「默认带扩展」，导致 418 模型下 hydration 变成 ~2.5s（扩展加载占 ~2.0s）。现已收敛回本文档的原始口径：默认 `--no-extensions`，带扩展只留给选择器刷新按钮，见文末「扩展加载分档」。
+> 2026-09 更新：这段实测用的是 `--no-extensions`。implementation 最初按 #181 改成「默认带扩展」，导致 418 模型下 hydration 变成 ~2.5s（扩展加载占 ~2.0s），曾一度收敛回「默认 `--no-extensions`，带扩展只留给选择器刷新按钮」。
+> 2026-09（fork mod）再调整：档位改为**用户可配**（设置 `piModelListLoadExtensions`，默认开 = 带扩展），因为「模型列表里看不到刚装的供应商」对用户而言比 2s 首开更难理解；快速档仍保留给追求冷启动速度的用户，刷新按钮仍保留为一次性补回入口，见文末「扩展加载分档」。
 
 这仍然只有 PiDeck ↔ Pi 的 stdio JSON-RPC 一条通信边界，不在 PiDeck 复制 Pi 的能力算法。现有 `pi --list-models` 可在旧 Pi 或 capability hydration 失败时继续担任兼容 fallback；长期可推动 Pi 提供一次返回所有模型已计算 levels 的 RPC，去掉批量 `set_model → get_available_thinking_levels` 循环。
 
@@ -495,7 +496,7 @@ Pi 上游从 **0.81.0** 开始提供 `get_available_thinking_levels`，但它只
 | 运行中的 Pi Agent | runtime state / record | 同一 cache snapshot；idle + cache-miss 时后台 runtime RPC 兑底，不阻塞 |
 | DSH | DSH host catalog | `reasoningEfforts`，独立处理 |
 
-## 扩展加载分档（2026-09 收敛：默认快速档，刷新按钮是扩展模型的唯一入口）
+## 扩展加载分档（档位由设置决定，刷新按钮始终带扩展）
 
 ### 问题
 
@@ -516,26 +517,29 @@ Pi 上游从 **0.81.0** 开始提供 `get_available_thinking_levels`，但它只
 
 | 触发路径 | 档位 | 代码 |
 |---|---|---|
-| 启动 hydration（`app ready` 后后台） | 快速档 | `main/index.ts` → `piModelCapabilityCache.ensure()` |
+| 启动 hydration（`app ready` 后后台） | 跟随设置 `piModelListLoadExtensions` | `main/index.ts` → `piModelCapabilityCache.ensure()` |
 | 选择器打开（snapshot 已就绪） | 只读内存 | `systemIpc.projectsListModelsReport` → `ensure()` |
-| 保存 `models.json` / `auth.json`、custom Pi path、WSL 变更、备份恢复、`models.json` / `auth.json` / `models-store.json` watcher | 快速档重建 | `systemIpc.refreshPiModelCatalogs()` → `refresh()` |
-| **模型选择器右上角刷新按钮**（`listModelsReport(force=true)`） | **慢速档（带扩展）** | `modelCapabilityCache.refresh({ loadExtensions: true })` |
+| 保存 `models.json` / `auth.json`、custom Pi path、WSL 变更、备份恢复、`models.json` / `auth.json` / `models-store.json` watcher | 跟随设置重建 | `systemIpc.refreshPiModelCatalogs()` → `refresh()`（无参 = 默认档） |
+| 设置页切换 `piModelListLoadExtensions` | 立即重建（新档位） | `systemIpc.settingsUpdate` → `refreshModelCapabilities()` → `refresh()` |
+| **模型选择器右上角刷新按钮**（`listModelsReport(force=true)`） | **必带扩展** | `modelCapabilityCache.refresh({ loadExtensions: true })` |
 
 `PiModelCapabilityCache` 快照带 `loadExtensions` 字段，`projectsListModelsReport` 的日志 `Model list report resolved` 也输出它——排查「刷新后模型多了/少了」先看这个字段。
 
 ### 边界与取舍
 
-- 装了 `pi.registerProvider` 类插件（antigravity、自建 proxy provider、OAuth provider、自定义 `streamSimple`）的用户，**默认列表里看不到插件模型，需要点一次刷新按钮**；带扩展快照在下一次自动失效重建（保存配置 / 文件 watcher）后回到快速档，需要再次点刷新。
+- 装了 `pi.registerProvider` 类插件（antigravity、pi-clinepass、自建 proxy provider、OAuth provider、自定义 `streamSimple`）的用户：设置开（本 fork 默认）则模型选择器直接列出插件模型；关掉则默认看不到，需点一次刷新按钮补回（在快速档下，下一次自动失效重建会丢掉扩展模型）。
+- 开关写入 PiDeck 自己的设置（`settings.json` 的 `piModelListLoadExtensions`），入口在「配置管理 → pi 配置管理 → 设置 → 默认供应商与模型」；它不属于 pi 的配置，所以不进 `~/.pi/agent/settings.json`。
 - 运行中的 Agent 不受影响：它按用户设置正常加载扩展，插件模型选中后照常可用；`set_model` 失败时仍走既有 `needsRestart` 引导。
 - 用户全局勾了 `piRpcNoExtensions`（开发设置诊断开关）时，慢速档同样不加载扩展——显式设置优先，诊断路径不能被刷新按钮绕过。
-- 坏扩展的挂起风险现在只在用户点刷新时兜现（单个 RPC 请求 30s 超时上限），而不是每次启动都赌一次。
+- 坏扩展的挂起风险：设置开启时每次启动 hydration 都会赌一次（单个 RPC 请求 30s 超时上限），关掉后只在用户点刷新时兜现。
 - 兜底兼容链路（`modelListCache.runPiListModels` 的第一档仍带扩展、失败降级）**保持不变**：它只在 hydration 完全失败时走，属于故障路径而非默认路径。
 
 ### 回归护栏
 
 `tests/piModelCapabilityCache.test.mjs`：
 
-- 「默认 hydration 走快速档（--no-extensions），只有手动刷新才带扩展」：断言 `ensure()` → `createProcess({ loadExtensions: false })`、`refresh({ loadExtensions: true })` → true、无参 `refresh()` → false，以及快照的 `loadExtensions` 字段；
-- 「装配口径：快速档传 piRpcNoExtensions，只有刷新按钮透传 loadExtensions」：源码级断言 `main/index.ts` 的 `...(loadExtensions ? {} : { piRpcNoExtensions: true })` 与 `systemIpc` 手动刷新分支的 `refresh({ loadExtensions: true })`。
+- 「默认 hydration 档位：库缺省不加载扩展，注入设置读取函数后按设置走」：不断言 `ensure()` → `createProcess({ loadExtensions: false })`（库缺省保守）、`refresh({ loadExtensions: true })` → true、无参 `refresh()` → 缺省口径，以及快照的 `loadExtensions` 字段；
+- 「设置开启慢速档：ensure / 无参 refresh 都加载扩展，显式 false 可覆盖」：`defaultLoadExtensions: () => settingEnabled` 为 true 时 `ensure()` / 无参 `refresh()` 都带扩展，关掉后重建回到快速档且显式 true 仍可覆盖；
+- 「装配口径：快速档传 piRpcNoExtensions，刷新按钮透传 loadExtensions，默认档读设置」：源码级断言 `main/index.ts` 的 `...(loadExtensions ? {} : { piRpcNoExtensions: true })`、`defaultLoadExtensions: () => settingsStore.get().piModelListLoadExtensions` 与 `systemIpc` 手动刷新分支的 `refresh({ loadExtensions: true })`。
 
 `tests/modelListCacheRefresh.test.mjs` 的「manual picker reload (force)」同时断言「目录刷新 + 带扩展重建」在同一次 force 调用里——两者拆开会让扩展模型永远补不回来。

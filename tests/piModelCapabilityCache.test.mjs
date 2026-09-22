@@ -160,10 +160,11 @@ test("unsupported thinking RPC discards the exact snapshot instead of inventing 
 	assert.equal(fake.commands.filter((command) => command.type === "get_available_models").length, 1, "a failed generation must not respawn Pi for every picker open");
 });
 
-test("默认 hydration 走快速档（--no-extensions），只有手动刷新才带扩展", async () => {
+test("默认 hydration 档位：库缺省不加载扩展，注入设置读取函数后按设置走", async () => {
 	// 背景：扩展加载是 hydration 冷启动的大头（本机实测 418 模型：带扩展 ~2.4s vs
 	// --no-extensions ~0.37s），而扩展贡献的模型（pi.registerProvider，issue #181）
-	// 只有装了此类插件的用户才有。因此默认档必须不加载扩展，手动刷新是唯一慢速入口。
+	// 只有装了此类插件的用户才有。库自身不读设置：不传 defaultLoadExtensions 时
+	// 仍是快速档（保守默认），装配层注入 `() => settingsStore.get().piModelListLoadExtensions`。
 	const models = [{ provider: "openai", id: "gpt-5", reasoning: true }];
 	const levels = new Map([["openai\u0000gpt-5", ["off", "high"]]]);
 	const spawnModes = [];
@@ -175,7 +176,7 @@ test("默认 hydration 走快速档（--no-extensions），只有手动刷新才
 	});
 
 	const fast = await cache.ensure();
-	assert.deepEqual(spawnModes, [false], "首次 hydration 必须用 --no-extensions 快速档");
+	assert.deepEqual(spawnModes, [false], "未注入设置时首次 hydration 必须用 --no-extensions 快速档");
 	assert.equal(fast.loadExtensions, false, "快照要标明自己没带扩展");
 
 	// 已发布快照直接复用，不再 spawn。
@@ -186,16 +187,51 @@ test("默认 hydration 走快速档（--no-extensions），只有手动刷新才
 	assert.deepEqual(spawnModes, [false, true], "手动刷新必须回到带扩展档");
 	assert.equal(full.loadExtensions, true);
 
-	// 无参 refresh = 配置保存/watcher 等自动失效重建：回到快速档。
+	// 无参 refresh = 配置保存/watcher 等自动失效重建：跟随默认档（此处未注入 = 快速档）。
 	await cache.refresh();
 	assert.deepEqual(spawnModes, [false, true, false]);
 });
 
-test("装配口径：快速档传 piRpcNoExtensions，只有刷新按钮透传 loadExtensions", () => {
+test("设置开启慢速档：ensure / 无参 refresh 都加载扩展，显式 false 可覆盖", async () => {
+	// 对应设置 piModelListLoadExtensions = true（本 fork 默认值）：模型选择器首次打开
+	// 就应包含扩展贡献的 provider（issue #181，如 pi-clinepass 的 clinepass），
+	// 且配置保存 / watcher 触发的自动重建不得把扩展模型刷没。
+	const models = [{ provider: "clinepass", id: "cline-pass/deepseek-v4.1-flash", reasoning: true }];
+	const levels = new Map([["clinepass\u0000cline-pass/deepseek-v4.1-flash", ["off", "max"]]]);
+	const spawnModes = [];
+	let settingEnabled = true;
+	const cache = new PiModelCapabilityCache({
+		defaultLoadExtensions: () => settingEnabled,
+		createProcess: (options) => {
+			spawnModes.push(options.loadExtensions);
+			return createProcess(models, levels).process;
+		},
+	});
+
+	const first = await cache.ensure();
+	assert.deepEqual(spawnModes, [true], "设置开启时首次 hydration 就要加载扩展");
+	assert.equal(first.loadExtensions, true);
+
+	// watcher / 配置保存触发的自动重建同样跟随设置（否则一次外部改文件就刷掉扩展模型）。
+	const rebuilt = await cache.refresh();
+	assert.deepEqual(spawnModes, [true, true]);
+	assert.equal(rebuilt.loadExtensions, true);
+
+	// 设置关闭后重建回到快速档，且显式 true（刷新按钮）仍能一次性补回。
+	settingEnabled = false;
+	await cache.refresh();
+	const forced = await cache.refresh({ loadExtensions: true });
+	assert.deepEqual(spawnModes, [true, true, false, true]);
+	assert.equal(forced.loadExtensions, true);
+});
+
+test("装配口径：快速档传 piRpcNoExtensions，刷新按钮透传 loadExtensions，默认档读设置", () => {
 	const indexSource = readFileSync("src/main/index.ts", "utf8");
 	// 快速档：settings 上强制 piRpcNoExtensions（含内置扩展 -e 注入一并跳过）。
 	assert.match(indexSource, /createProcess: \(\{ loadExtensions \}\) =>/);
 	assert.match(indexSource, /\.\.\.\(loadExtensions \? \{\} : \{ piRpcNoExtensions: true \}\)/);
+	// 默认档跟随设置：装配层必须注入设置读取函数，否则开关切了也不生效。
+	assert.match(indexSource, /defaultLoadExtensions: \(\) => settingsStore\.get\(\)\.piModelListLoadExtensions/);
 
 	const systemIpc = readFileSync("src/main/ipc/systemIpc.ts", "utf8");
 	const manualReloadStart = systemIpc.indexOf("// 手动刷新（force）");

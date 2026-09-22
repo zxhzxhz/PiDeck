@@ -257,6 +257,12 @@ Gitmoji 对应关系：
 	piRpcNoExtensions: false,
 	piRpcNoSkills: false,
 
+	// 模型列表水合默认加载扩展（慢速档）：模型选择器能看到扩展贡献的 provider
+	// （如 pi-clinepass 的 clinepass）。首开多等约 2s，换来「装了就有」的预期。
+	piModelListLoadExtensions: true,
+	// 输入卡下方扩展状态行默认关：不占默认布局，用户显式开启才显示。
+	showComposerStatusLine: false,
+
 	// 字体配置：默认使用系统字体；用户可通过自定义字体设置修改。
 	// 出厂默认取 "default" 档：与 CSS token 基线（:root 无覆盖时）一致，
 	// 避免「默认」档位名与实际出厂外观错位（旧默认 medium 比 default 大一档）。

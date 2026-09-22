@@ -291,6 +291,8 @@ export const CommonTab = memo(function CommonTab(props: CommonTabProps) {
 				{/* 流式对话设置：中间过程与本轮修改文件的默认展示行为。 */}
 				<SettingSwitchRow anchor="common-expand-interim-during-stream" title={t("settings.expandInterimDuringStream")} description={t("settings.expandInterimDuringStreamDesc")} checked={draft.expandInterimDuringStream} onChange={(checked) => updateDraft({ expandInterimDuringStream: checked })} />
 				<SettingSwitchRow anchor="common-collapse-prev-runs" title={t("settings.collapsePrevRunsOnNewTurn")} description={t("settings.collapsePrevRunsOnNewTurnDesc")} checked={draft.collapsePrevRunsOnNewTurn} onChange={(checked) => updateDraft({ collapsePrevRunsOnNewTurn: checked })} />
+				{/* 扩展状态行：输入卡下方复刻 pi TUI 底栏最后一行（扩展 setStatus 文本）。 */}
+				<SettingSwitchRow anchor="common-show-composer-status-line" title={t("settings.showComposerStatusLine")} description={t("settings.showComposerStatusLineDesc")} checked={draft.showComposerStatusLine} onChange={(checked) => updateDraft({ showComposerStatusLine: checked })} />
 			</SettingsSection>
 
 			{/* 快捷消息：数据在 userData/quick-messages.json，本区自持编辑状态并即时落盘（不参与全局草案/取消）。 */}

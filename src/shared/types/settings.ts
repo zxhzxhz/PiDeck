@@ -437,6 +437,19 @@ export type AppSettings = {
 	 * 用于排查/加速；开启后技能命令与 skill 相关能力不可用。
 	 */
 	piRpcNoSkills: boolean;
+	/**
+	 * 模型列表（模型选择器）水合时是否加载扩展。
+	 * 开 = 慢速档：能列出 `pi.registerProvider` 贡献的模型（如 pi-clinepass 的 clinepass），
+	 * 代价是首次水合多等扩展加载（本机实测 0.4s → 2.4s）。
+	 * 关 = 快速档（`--no-extensions`）：只列 models.json / 内置目录的模型。
+	 * 默认开：宁可首开稍慢，也不要「模型选择器里看不到刚装的供应商」。
+	 */
+	piModelListLoadExtensions: boolean;
+	/**
+	 * 在输入卡下方显示扩展状态行（等价于 pi TUI 底栏的最后一行）。
+	 * 内容来自扩展 `ctx.ui.setStatus(key, text)`；无状态条目时不占高度。默认关。
+	 */
+	showComposerStatusLine: boolean;
 
 	// ── 侧栏 UI 状态 ──
 	/**

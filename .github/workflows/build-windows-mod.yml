@@ -1,0 +1,79 @@
+name: Build Windows (mod)
+
+# fork 专用：构建 mod 分支的 Windows 安装包（NSIS + portable + zip），不上传 Release。
+# 触发方式：
+#   1. push 到 mod 分支（自动构建 x64）；
+#   2. 手动 workflow_dispatch（可选分支/tag 与架构）。
+# 与上游 build-windows.yml 的差别：默认构建来源为 mod 分支（上游写死 main）、
+# 默认只出 x64、并先跑 typecheck 与格式检查，避免把不编译的提交打成安装包。
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "要构建的分支或 tag（默认 mod）"
+        required: false
+        default: mod
+      arch:
+        description: "目标架构"
+        required: false
+        default: x64
+        type: choice
+        options:
+          - x64
+          - arm64
+  push:
+    branches:
+      - mod
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows ${{ github.event.inputs.arch || 'x64' }}
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # push 触发时 inputs 为空 → 用 github.ref（即被推送的 mod 分支）
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 打包前先挡类型/格式/生成物漂移：CI 里这些是独立 job，fork 的 mod 分支不跑 ci.yml，
+      # 漏了会出现「安装包能出但代码不编译」的假成功。check:* 与上游 ci.yml 保持同一组。
+      - name: Check generated artifacts drift
+        run: npm run check:announcements && npm run check:pi-ai-catalog && npm run check:extensions-manifest && npm run check:prompts-manifest && npm run check:skills-manifest
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check formatting
+        run: npm run check:format
+
+      - name: Generate app icon
+        run: npm run make-icon
+
+      - name: Build Windows ${{ github.event.inputs.arch || 'x64' }} package
+        run: npm run build && npx electron-builder --win nsis portable zip --${{ github.event.inputs.arch || 'x64' }} --publish never
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pideck-mod-windows-${{ github.event.inputs.arch || 'x64' }}
+          if-no-files-found: error
+          path: |
+            release/*.exe
+            release/*.zip
+            release/*.blockmap
+            release/latest-win.yml

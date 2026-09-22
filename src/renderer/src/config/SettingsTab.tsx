@@ -10,6 +10,7 @@ import { Checkbox } from "../components/ui-shadcn/checkbox";
 import { Label } from "../components/ui-shadcn/label";
 import { SettingBox, SettingRow, SettingSwitchRow, ClearableSettingsInput } from "../components/app/settings/SettingRows";
 import { SettingsSection } from "../components/app/settings/SettingsStorageTab";
+import { ModelListLoadExtensionsSetting } from "./ModelListLoadExtensionsSetting";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui-shadcn/popover";
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "../components/ui-shadcn/command";
 
@@ -294,6 +295,9 @@ export function SettingsTab(props: {
 
 			{/* ── 默认供应商 / 默认模型：始终显示，不依赖 settings.json 中是否已存在这两个 key ── */}
 			<SettingsSection title={t("config.defaults.title")} description={t("config.defaults.hint")}>
+				{/* PiDeck 侧开关（直接落盘、不走本页 draft）：控制模型列表由哪一档 pi 水合。
+					放在这里是因为它直接决定「默认模型」能不能选到扩展贡献的供应商模型。 */}
+				<ModelListLoadExtensionsSetting />
 				{/* defaultProvider / defaultModel 未配置时 value 为 undefined，SettingsValueInput 按空串处理
 				    （combobox 空态 + 隐藏清除按钮）；选中后写入 key 本身；清空则保留 key 值为 ""，消费方按默认行为兜底 */}
 				<SettingRow title={<span>{configLabel("defaultProvider")}</span>} alignEnd={false}>

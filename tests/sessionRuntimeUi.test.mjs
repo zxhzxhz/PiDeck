@@ -428,3 +428,62 @@ test("detach envelope clears the agent identity and all runtime UI", () => {
 	assert.equal(runtime.state, undefined);
 	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"], undefined);
 });
+
+/**
+ * 扩展状态行（pi TUI 底栏最后一行）在运行期 UI 状态里的存/清。
+ * 合成规则在主进程（tests/extensionStatusLine.test.mjs），这里只锁渲染层的状态流转：
+ * 主进程给什么就存什么，空值即清空 —— 渲染层不得自己攒条目或拼接（否则与 TUI 顺序不一致）。
+ */
+test("extension status line is stored verbatim and cleared by an empty payload", () => {
+	const atoms = loadAtoms();
+	const store = createStore();
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			payload: {
+				agentId: "agent-a",
+				requestId: "status-a",
+				method: "setStatus",
+				statusKey: "clinepass-cost",
+				statusLine: "Turn: $0.00000 | 5h: 4% (resets 13:39) mc: 0 (0%)",
+			},
+		}),
+	);
+	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, "Turn: $0.00000 | 5h: 4% (resets 13:39) mc: 0 (0%)");
+
+	// pi 清掉最后一个状态条目时主进程下发空 statusLine：整行必须卸载（不残留旧文本）。
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			payload: {
+				agentId: "agent-a",
+				requestId: "status-b",
+				method: "setStatus",
+				statusKey: "clinepass-cost",
+			},
+		}),
+	);
+	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, undefined);
+
+	// runtime 关闭：整行随 UI 状态一起清空，避免下一个 runtime 继承上一进程的状态。
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			payload: {
+				agentId: "agent-a",
+				requestId: "status-c",
+				method: "setStatus",
+				statusKey: "mcp",
+				statusLine: "🔌 MCP: 0 servers enabled",
+			},
+		}),
+	);
+	store.set(
+		atoms.applySessionRuntimeEventAtom,
+		event({
+			sourceChannel: "agents:state",
+			payload: { id: "agent-a", status: "closed" },
+		}),
+	);
+	assert.equal(store.get(atoms.sessionRuntimeUiByIdAtom)["session-a"].statusLine, undefined);
+});

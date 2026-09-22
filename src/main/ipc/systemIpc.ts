@@ -168,6 +168,11 @@ export type SystemIpcDeps = {
 	resolveWslEnvironment?: (distro: string, user: string, logger: { warn: (msg: string, detail: unknown) => void }) => Promise<import("../wsl/WslPaths").WslEnvironment>;
 	/** React to settings changes for pet system */
 	reactToPetSettings?: (prev: AppSettings, next: AppSettings) => Promise<void>;
+	/**
+	 * 设置变更后重建模型能力快照（piModelListLoadExtensions 切换时需要）：
+	 * 旧快照是按旧档位水合的，不失效会让选择器继续按旧档位展示模型。
+	 */
+	refreshModelCapabilities?: () => void;
 	/** Session scanner WSL config */
 	configureSessionScannerWsl?: (env: import("../wsl/WslPaths").WslEnvironment) => Promise<void>;
 	clearSessionScannerWsl?: () => void;
@@ -332,6 +337,7 @@ export function registerSystemIpc(deps: SystemIpcDeps): void {
 		openExternalUrl: doOpenExternalUrl,
 		resolveWslEnvironment,
 		reactToPetSettings,
+		refreshModelCapabilities,
 		configureSessionScannerWsl,
 		clearSessionScannerWsl,
 		setFeishuLocale,
@@ -504,9 +510,10 @@ export function registerSystemIpc(deps: SystemIpcDeps): void {
 			// force 绕过 4h 磁盘节流——官方 provider 新模型立刻可见），成功后再重新
 			// hydration。目录刷新失败（无网络/超时）不阻塞：退回读盘 hydration，
 			// 旧目录也能刷新列表，刷新按钮不因网络问题报错。
-			// 同时这是模型选择器里唯一付「带扩展」成本的入口（loadExtensions: true）：
-			// 启动/失效重建默认走 --no-extensions 快速档，扩展通过 pi.registerProvider
-			// 贡献的模型（issue #181）只在这里补回，见 docs/pi-model-capability-plan.md。
+			// 同时这是模型选择器里唯一「必带扩展」的入口（loadExtensions: true）：
+			// 启动/失效重建走设置 piModelListLoadExtensions 决定的档位，开了扩展的模型
+			// （issue #181）就在列表里；关掉后仍可在这里一次性补回，
+			// 见 docs/pi-model-capability-plan.md。
 			if (forceArg) {
 				const catalogRefreshed = await refreshModelCatalogStore(piLocator, settingsStore);
 				void appLogger.info("pi", "Model catalog force refresh on manual reload", {
@@ -1463,6 +1470,11 @@ export function registerSystemIpc(deps: SystemIpcDeps): void {
 
 		if (typeof reactToPetSettings === "function") {
 			await reactToPetSettings(prevSettings, settings);
+		}
+		// 模型列表水合档位切换：旧快照按旧档位生成（可能缺扩展模型 / 白等扩展），
+		// 立即失效重建，下一次打开选择器就是新档位的结果。
+		if ("piModelListLoadExtensions" in patch && prevSettings.piModelListLoadExtensions !== settings.piModelListLoadExtensions) {
+			refreshModelCapabilities?.();
 		}
 		if ("desktopProxyEnabled" in patch || "desktopProxyUrl" in patch || "desktopProxyBypass" in patch) {
 			if (applyDesktopProxy) await applyDesktopProxy(settings);

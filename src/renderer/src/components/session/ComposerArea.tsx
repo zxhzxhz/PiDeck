@@ -16,6 +16,7 @@ import { desktopApi } from "../../desktopApi";
 import { COMPOSER_TEXT_MAX_HEIGHT } from "../../rendererUtils";
 import { chatContentWidthStyle } from "./chatContentWidth";
 import { ComposerStatsLine } from "./ComposerStatsLine";
+import { ComposerStatusLine } from "./ComposerStatusLine";
 import { ComposerWidgetLayoutProvider, type ComposerWidgetCollapsedByKey, useComposerWidgetLayoutValue } from "./ComposerWidgetLayout";
 import type { GitBranchInfo } from "../../../../shared/types";
 import type { EnqueuePromptSnapshot } from "../../hooks/useSessionSend";
@@ -57,6 +58,8 @@ type ComposerExtrasProps = {
 	composerBox: ReactNode;
 	/** 输入卡正下方 StatsLine；与输入卡同一列，不吃剩余高度。 */
 	statsLine?: ReactNode;
+	/** StatsLine 下方的扩展状态行（pi TUI 底栏最后一行）；不在两栏之间插入额外间距。 */
+	statusLine?: ReactNode;
 };
 
 /**
@@ -85,6 +88,7 @@ function ComposerMeasuredExtras(props: ComposerExtrasProps) {
 				<div className="flex w-full min-w-0 shrink-0 flex-col">
 					{props.composerBox}
 					{props.statsLine}
+					{props.statusLine}
 				</div>
 			</>
 		</ComposerWidgetLayoutProvider>
@@ -137,6 +141,7 @@ export const ComposerArea = forwardRef<HTMLElement, ComposerAreaProps>(function 
 								) : null
 							}
 							statsLine={<ComposerStatsLine state={composer.runtime?.state} turnCount={props.turnCount} />}
+							statusLine={<ComposerStatusLine sessionId={props.sessionId} />}
 							composerBox={
 								<div
 									// overflow-visible：保留命令面板/建议浮层；面板 minSize 已保证底栏不被裁切

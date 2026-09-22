@@ -73,6 +73,7 @@ import {
 } from "../rewind/index.ts";
 import { AgentMessageProjector, buildActiveBranchEntryIds as buildActiveBranchEntryIdsForDisplay } from "./AgentMessageProjector";
 import { LatestByKeyEmitter } from "./LatestByKeyEmitter";
+import { applyExtensionStatus, composeExtensionStatusLine } from "./extensionStatusLine";
 import { resolveNotificationSessionId } from "./agentUtils";
 import { isRoleMessageRole } from "./sessionEntryIds";
 import { createStreamGateState, isStreamGateSealed, noteAbortSettled, openStreamGateForNewRun, sealStreamGate, type StreamGateState } from "./streamGate";
@@ -134,6 +135,12 @@ export class AgentManager {
 	readonly capabilities: ReadonlySet<AgentGatewayCapability> = new Set(["compact", "fork", "getForkMessages", "editMessage", "deleteMessage", "getCommands", "exportHtml"]);
 	private readonly agents = new Map<string, AgentRuntime>();
 	private readonly messages = new Map<string, ChatMessage[]>();
+	/**
+	 * 各 runtime 的 pi 扩展状态条目（`setStatus(key, text)`），用于复刻 TUI 底栏最后一行。
+	 * 键为 agentId；值保留原始（未清洗）文本，合成时统一按 pi footer 的规则排序/清洗。
+	 * 随 runtime 生命周期清理（clearAgentState），否则重启后会残留上一进程的旧状态。
+	 */
+	private readonly extensionStatusByAgent = new Map<string, Map<string, string>>();
 	/** 工具完整结果 LRU 缓存：截断下发后完整文本仅存于此（运行期「查看完整输出」走内存，
 	 *  历史会话回退读会话文件）。键为 pi message id，agent 停止时随 clearAgentState 释放。 */
 	private readonly toolFullTextByMessageId = new Map<string, string>();
@@ -3108,6 +3115,7 @@ export class AgentManager {
 		this.lastAbortAtByAgent.delete(agentId);
 		this.pendingUIRequests.delete(agentId);
 		this.pendingAutomaticTitles.delete(agentId);
+		this.extensionStatusByAgent.delete(agentId);
 		this.startupHandshakeAgents.delete(agentId);
 		// 启动期诊断与首 run 标记随生命周期清理：重启/关闭后新 runtime 重新队列
 		this.pendingStartupDiagnostics.delete(agentId);
@@ -4768,6 +4776,22 @@ export class AgentManager {
 		}
 		if (method === "setStatus") {
 			const statusKey = typeof typed.statusKey === "string" ? typed.statusKey : "";
+			// 扩展状态行（TUI 底栏最后一行）：累积本 runtime 的条目并下发合成结果。
+			// 这里不能只转单条 setStatus —— 一行是「全部条目按 key 排序后拼起来」的产物，
+			// 渲染层没有状态集合，只有主进程能算出一致的整行文本。
+			if (statusKey && statusKey !== "pideck:auto-title") {
+				const statuses = this.extensionStatusByAgent.get(agentId) ?? new Map<string, string>();
+				if (!this.extensionStatusByAgent.has(agentId)) this.extensionStatusByAgent.set(agentId, statuses);
+				applyExtensionStatus(statuses, statusKey, typeof typed.statusText === "string" ? typed.statusText : undefined);
+				this.emit(ipcChannels.agentsUiRequest, {
+					agentId,
+					requestId,
+					method,
+					title: "",
+					statusKey,
+					statusLine: composeExtensionStatusLine(statuses),
+				});
+			}
 			if (statusKey === "pideck:auto-title") {
 				const title = typeof typed.statusText === "string" ? typed.statusText.replace(/\s+/g, " ").trim() : "";
 				const runtime = this.agents.get(agentId);
